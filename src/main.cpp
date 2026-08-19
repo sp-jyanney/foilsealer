@@ -22,6 +22,8 @@
 #define DIR_PIN 5
 #define DIR_PIN2 11
 
+#define SENSOR_PIN 8
+
 // button pin
 const int trigger_button = 13;
 
@@ -34,9 +36,12 @@ const float rpm = 6;
 unsigned long step_interval_us;
 unsigned long last_step_time1 = 0;
 unsigned long last_step_time2 = 0;
+unsigned long press_start_time = 0;
+const unsigned long press_duration = 2000;
 
 enum stateMachine {
   IDLE,
+  TENSION,
   PRESS,
 };
 
@@ -44,7 +49,8 @@ stateMachine currentState = IDLE;
 
 bool prev_triggered = false;
 unsigned long state2_time = 0;
-const unsigned long state2_duration = 1750;
+const unsigned long state2_duration = 1900;
+const unsigned long state2_duration_timeout = 10000;
 
 void setup() {
   Serial.begin(9600);
@@ -61,6 +67,7 @@ void setup() {
 
   pinMode(DIR_PIN, OUTPUT);
   pinMode(DIR_PIN2, OUTPUT);
+  pinMode(SENSOR_PIN, INPUT_PULLUP);
 
   pinMode(trigger_button, INPUT_PULLUP);
 
@@ -79,7 +86,7 @@ void loop() {
 
       if (triggered && !prev_triggered) {
         // Serial.println("state 1 --> state 2");
-        currentState = PRESS;
+        currentState = TENSION;
         state2_time = millis();
         digitalWrite(EN_PIN, LOW);
         digitalWrite(EN_PIN2, LOW);
@@ -89,28 +96,45 @@ void loop() {
     }
 
     // updated so that motor 2 holds while motor 1 spins
-    case PRESS: {
-      if (millis() - state2_time < state2_duration) {
-        if (micros() - last_step_time1 >= step_interval_us) {
-          last_step_time1 = micros();
-          digitalWrite(DIR_PIN, HIGH);
-          digitalWrite(STEP_PIN, HIGH);
-          delayMicroseconds(2);
-          digitalWrite(STEP_PIN, LOW);
-        }
+    case TENSION: {
+      bool flag_blocked = digitalRead(SENSOR_PIN) == HIGH;
 
-        // motor 2 is held
-        digitalWrite(EN_PIN2, LOW);
+      digitalWrite(EN_PIN, LOW);
+
+      if (!flag_blocked) {
+        if (micros() - last_step_time2 >= step_interval_us) {
+          last_step_time2 = micros();
+          digitalWrite(DIR_PIN2, LOW);
+          digitalWrite(STEP_PIN2, HIGH);
+          delayMicroseconds(2);
+          digitalWrite(STEP_PIN2, LOW);
+        }
+        if (millis() - state2_time >= state2_duration_timeout) {
+          Serial.println("PRESS timeout: sensor never detected blocked");
+          currentState = IDLE;
+        }
       }
       else {
-        // Serial.println("state 2 is done :p");
-        digitalWrite(EN_PIN, HIGH);
-        digitalWrite(EN_PIN2, HIGH);
+        Serial.println("flag detected: transitioning to the next state");
+        currentState = PRESS;
+        press_start_time = millis();
+      }
+      break;
+    }
+
+    case PRESS: {
+      digitalWrite(EN_PIN, LOW);
+      digitalWrite(EN_PIN2, LOW);
+
+      if (millis() - press_start_time < press_duration) {
+        // put the press business here
+      }
+      else {
+        Serial.println("press complete");
       }
       break;
     }
   }
-  
 }
 
 /* ******FSM pseudocode!
