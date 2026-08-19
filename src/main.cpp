@@ -22,15 +22,8 @@
 #define DIR_PIN 5
 #define DIR_PIN2 11
 
-/*button variables*/
-// motor 1 controls
-// const int cw_button = 13;
+// button pin
 const int trigger_button = 13;
-const int ccw_button = 12;
-
-// motor 2 controls
-const int cw_button2 = 7;
-const int ccw_button2 = 2;
 
 /*speed-related variables*/
 const int steps_per_rev = 200;
@@ -69,11 +62,7 @@ void setup() {
   pinMode(DIR_PIN, OUTPUT);
   pinMode(DIR_PIN2, OUTPUT);
 
-  // pinMode(cw_button, INPUT_PULLUP);
   pinMode(trigger_button, INPUT_PULLUP);
-  pinMode(ccw_button, INPUT_PULLUP);
-  pinMode(cw_button2, INPUT_PULLUP);
-  pinMode(ccw_button2, INPUT_PULLUP);
 
   step_interval_us = (60UL * 1000000UL) / ((unsigned long)steps_per_rev * microsteps * rpm);
 }
@@ -89,7 +78,7 @@ void loop() {
       digitalWrite(EN_PIN2, HIGH);
 
       if (triggered && !prev_triggered) {
-        Serial.println("state 1 --> state 2");
+        // Serial.println("state 1 --> state 2");
         currentState = PRESS;
         state2_time = millis();
         digitalWrite(EN_PIN, LOW);
@@ -99,6 +88,7 @@ void loop() {
       break;
     }
 
+    // updated so that motor 2 holds while motor 1 spins
     case PRESS: {
       if (millis() - state2_time < state2_duration) {
         if (micros() - last_step_time1 >= step_interval_us) {
@@ -109,16 +99,11 @@ void loop() {
           digitalWrite(STEP_PIN, LOW);
         }
 
-        if (micros() - last_step_time2 >= step_interval_us) {
-          last_step_time2 = micros();
-          digitalWrite(DIR_PIN2, LOW);
-          digitalWrite(STEP_PIN2, HIGH);
-          delayMicroseconds(2);
-          digitalWrite(STEP_PIN2, LOW);
-        }
+        // motor 2 is held
+        digitalWrite(EN_PIN2, LOW);
       }
       else {
-        Serial.println("state 2 is done :p");
+        // Serial.println("state 2 is done :p");
         digitalWrite(EN_PIN, HIGH);
         digitalWrite(EN_PIN2, HIGH);
       }
@@ -145,8 +130,8 @@ If no button press is detected -> stay in State 1
 motors remain off throughout state
 
 State 2:
-Motor one moves clockwise and motor two moves counterclockwise for a set amount of time
-Motors are held
+Motor one moves clockwise and motor two is held for a set amount of time
+Both motors are held
 Transition to State 3
 
 State 3:
