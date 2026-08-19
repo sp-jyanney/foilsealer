@@ -32,8 +32,10 @@ const int steps_per_rev = 200;
 // ms1 & ms2 pins set to gnd for 8 microsteps as per datasheet
 const int microsteps = 8;
 const float rpm = 6;
+const float pull_rpm = 12;
 
 unsigned long step_interval_us;
+unsigned long pull_step_interval_us;
 unsigned long last_step_time1 = 0;
 unsigned long last_step_time2 = 0;
 unsigned long press_start_time = 0;
@@ -43,6 +45,7 @@ enum stateMachine {
   IDLE,
   TENSION,
   PRESS,
+  PULL_FOIL,
 };
 
 stateMachine currentState = IDLE;
@@ -51,6 +54,9 @@ bool prev_triggered = false;
 unsigned long state2_time = 0;
 const unsigned long state2_duration = 1900;
 const unsigned long state2_duration_timeout = 10000;
+
+unsigned long pull_foil_time = 0;
+const unsigned long pull_foil_duration = 6000;
 
 void setup() {
   Serial.begin(9600);
@@ -72,6 +78,7 @@ void setup() {
   pinMode(trigger_button, INPUT_PULLUP);
 
   step_interval_us = (60UL * 1000000UL) / ((unsigned long)steps_per_rev * microsteps * rpm);
+  pull_step_interval_us = (60UL * 1000000UL) / ((unsigned long)steps_per_rev * microsteps * pull_rpm);
 }
 
 bool prev_cw = false, prev_ccw = false;
@@ -131,6 +138,33 @@ void loop() {
       }
       else {
         Serial.println("press complete");
+        currentState = PULL_FOIL;
+        pull_foil_time = millis();
+      }
+      break;
+    }
+
+    case PULL_FOIL: {
+      if (millis() - pull_foil_time < pull_foil_duration) {
+        if (micros() - last_step_time1 >= pull_step_interval_us) {
+          last_step_time1 = micros();
+          digitalWrite(DIR_PIN, HIGH);
+          digitalWrite(STEP_PIN, HIGH);
+          delayMicroseconds(2);
+          digitalWrite(STEP_PIN, LOW);
+        }
+
+        if (micros() - last_step_time2 >= pull_step_interval_us) {
+          last_step_time2 = micros();
+          digitalWrite(DIR_PIN2, HIGH);
+          digitalWrite(STEP_PIN2, HIGH);
+          delayMicroseconds(2);
+          digitalWrite(STEP_PIN2, LOW);
+        }
+      }
+      else {
+        Serial.println("pull foil done yay");
+        currentState = IDLE;
       }
       break;
     }
