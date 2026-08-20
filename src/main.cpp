@@ -40,6 +40,11 @@ unsigned long last_step_time1 = 0;
 unsigned long last_step_time2 = 0;
 unsigned long press_start_time = 0;
 const unsigned long press_duration = 2000;
+unsigned long state2_time = 0;
+const unsigned long state2_duration_timeout = 10000;
+
+unsigned long pull_foil_time = 0;
+const unsigned long pull_foil_duration = 3000;
 
 enum stateMachine {
   IDLE,
@@ -51,12 +56,6 @@ enum stateMachine {
 stateMachine currentState = IDLE;
 
 bool prev_triggered = false;
-unsigned long state2_time = 0;
-const unsigned long state2_duration = 1900;
-const unsigned long state2_duration_timeout = 10000;
-
-unsigned long pull_foil_time = 0;
-const unsigned long pull_foil_duration = 6000;
 
 void setup() {
   Serial.begin(9600);
@@ -81,9 +80,6 @@ void setup() {
   pull_step_interval_us = (60UL * 1000000UL) / ((unsigned long)steps_per_rev * microsteps * pull_rpm);
 }
 
-bool prev_cw = false, prev_ccw = false;
-bool prev_cw2 = false, prev_ccw2 = false;
-
 void loop() {
   switch (currentState) {
     case IDLE: {
@@ -106,9 +102,11 @@ void loop() {
     case TENSION: {
       bool flag_blocked = digitalRead(SENSOR_PIN) == HIGH;
 
+      // motor 1 holding torque
       digitalWrite(EN_PIN, LOW);
 
       if (!flag_blocked) {
+        // motor 2 rotating ccw
         if (micros() - last_step_time2 >= step_interval_us) {
           last_step_time2 = micros();
           digitalWrite(DIR_PIN2, LOW);
@@ -130,11 +128,13 @@ void loop() {
     }
 
     case PRESS: {
+      // motors holding torque
       digitalWrite(EN_PIN, LOW);
       digitalWrite(EN_PIN2, LOW);
 
       if (millis() - press_start_time < press_duration) {
         // put the press business here
+        // currently timed, but pass through whatever condition
       }
       else {
         Serial.println("press complete");
@@ -145,6 +145,7 @@ void loop() {
     }
 
     case PULL_FOIL: {
+      // motor 1 cw
       if (millis() - pull_foil_time < pull_foil_duration) {
         if (micros() - last_step_time1 >= pull_step_interval_us) {
           last_step_time1 = micros();
@@ -154,6 +155,7 @@ void loop() {
           digitalWrite(STEP_PIN, LOW);
         }
 
+        // motor 2 cw
         if (micros() - last_step_time2 >= pull_step_interval_us) {
           last_step_time2 = micros();
           digitalWrite(DIR_PIN2, HIGH);
@@ -175,11 +177,9 @@ void loop() {
 
 States overview:
 - State 1 (Idle): Waiting for button press
-- State 2: Tension and press
-- State 3: Check sensor
-- State 4: Cut & Seal
-- State 5: Pull excess foil
-- State 6: Release
+- State 2: Tension and check sensor
+- State 3: Press
+- State 4: Pull excess foil
 --> cycle complete, return to State 1
 
 State 1:
@@ -188,36 +188,18 @@ If no button press is detected -> stay in State 1
 motors remain off throughout state
 
 State 2:
-Motor one moves clockwise and motor two is held for a set amount of time
-Both motors are held
+Motor two moves counterclockwise and motor one is held until the flag is seen by the sensor
+If not, there is a hard-cut timeout, which returns to State 1
 Transition to State 3
 
 State 3:
-if sensor data is within range -> transition to State 4
-If sensor data is not within range after a certain number of checks -> stay in State 3
-Possible go to a subState for repositioning and reenter State 3 instead
+Cut and seal (tbd)
 
 State 4:
-Whatever mechanism (heat?) cuts and seals the septum
-Transition to State 4
-
-State 5:
-The two motors spin in the same direction for a set amount of time
-Excess foil is pulled, resetting the system for the next cycle
-Transition to State 5
-
-State 6:
-The motors are released
-Cycle is complete, return to state 1
+Both motors rotate clockwise to pull excess foil
+Cycle is complete, return to State 1 (IDLE)
 
 
 Current unknowns/assumptions:
-- As of right now, I'm assuming that the logic is time-based
-    - alternatively, we could use position sensors, which would change the FSM logic, 
-      because there would be additional checks
-- If we use time-based logic, the system needs to be robust enough to ensure consistency
-    - this is something I can test, but initially, I'm not confident
-- For State 3, there may be a reposition subState if the sensor data is "incorrect"
-    - something like releasing tension and regaining it
-
+- logic for the press state is not yet implemented, so there's a timed placeholder for now
 */
