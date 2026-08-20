@@ -1,12 +1,10 @@
 #include <Arduino.h>
 
 /*
-- current working with one button logic for timed motion 
-  -> uncomment the relevant sections for four button individual motion logic
-
 - common ground and 5 V on perf board
 - power supply power and ground connections
 - current draw can be set via the onboard vref trimpot
+- operating at 17.5 V
 */
 
 /*pin definitions*/
@@ -32,19 +30,19 @@ const int steps_per_rev = 200;
 // ms1 & ms2 pins set to gnd for 8 microsteps as per datasheet
 const int microsteps = 8;
 const float rpm = 6;
-const float pull_rpm = 12;
+const float pull_rpm = 17;
 
 unsigned long step_interval_us;
 unsigned long pull_step_interval_us;
 unsigned long last_step_time1 = 0;
 unsigned long last_step_time2 = 0;
 unsigned long press_start_time = 0;
-const unsigned long press_duration = 2000;
+const unsigned long press_duration = 2100;
 unsigned long state2_time = 0;
 const unsigned long state2_duration_timeout = 10000;
 
 unsigned long pull_foil_time = 0;
-const unsigned long pull_foil_duration = 3000;
+const unsigned long pull_foil_duration = 2000;
 
 enum stateMachine {
   IDLE,
@@ -72,8 +70,8 @@ void setup() {
 
   pinMode(DIR_PIN, OUTPUT);
   pinMode(DIR_PIN2, OUTPUT);
-  pinMode(SENSOR_PIN, INPUT_PULLUP);
 
+  pinMode(SENSOR_PIN, INPUT_PULLUP);
   pinMode(trigger_button, INPUT_PULLUP);
 
   step_interval_us = (60UL * 1000000UL) / ((unsigned long)steps_per_rev * microsteps * rpm);
@@ -88,7 +86,7 @@ void loop() {
       digitalWrite(EN_PIN2, HIGH);
 
       if (triggered && !prev_triggered) {
-        // Serial.println("state 1 --> state 2");
+        Serial.println("state 1 --> state 2");
         currentState = TENSION;
         state2_time = millis();
         digitalWrite(EN_PIN, LOW);
@@ -114,6 +112,7 @@ void loop() {
           delayMicroseconds(2);
           digitalWrite(STEP_PIN2, LOW);
         }
+        // if flag is never detected, timeout and return to state 1
         if (millis() - state2_time >= state2_duration_timeout) {
           Serial.println("PRESS timeout: sensor never detected blocked");
           currentState = IDLE;
@@ -121,6 +120,7 @@ void loop() {
       }
       else {
         Serial.println("flag detected: transitioning to the next state");
+
         currentState = PRESS;
         press_start_time = millis();
       }
@@ -128,7 +128,7 @@ void loop() {
     }
 
     case PRESS: {
-      // motors holding torque
+      // motors holding torque from previous state
       digitalWrite(EN_PIN, LOW);
       digitalWrite(EN_PIN2, LOW);
 
