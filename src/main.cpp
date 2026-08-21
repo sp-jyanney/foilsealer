@@ -34,10 +34,13 @@ const float pull_rpm = 17;
 
 unsigned long step_interval_us;
 unsigned long pull_step_interval_us;
+
 unsigned long last_step_time1 = 0;
 unsigned long last_step_time2 = 0;
+
 unsigned long press_start_time = 0;
 const unsigned long press_duration = 2100;
+
 unsigned long state2_time = 0;
 const unsigned long state2_duration_timeout = 10000;
 
@@ -96,7 +99,7 @@ void loop() {
       break;
     }
 
-    // updated so that motor 2 holds while motor 1 spins
+
     case TENSION: {
       bool flag_blocked = digitalRead(SENSOR_PIN) == HIGH;
 
